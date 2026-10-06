@@ -36,3 +36,34 @@ export type OverviewResult = {
   cards: { label: string; value: number }[]
   modules: { name: string; created: number; pending: number; abnormal: number }[]
 }
+
+/** 贯通台账记录：一环一行，反复提交也只入一条，贯通时间保留最早那次。 */
+export type BreakthroughRecord = {
+  ringId: number
+  环号: string
+  区间: string
+  掘进班组: string
+  贯通时间: string
+}
+
+/** 批量（含单条入口复用）确认后，逐环给出的结果。 */
+export type RingConfirmItemState = 'confirmed' | 'skipped' | 'failed' | 'returned'
+
+export type RingConfirmItem = {
+  id: number
+  环号: string
+  ok: boolean
+  state: RingConfirmItemState
+  reason?: string
+}
+
+export type RingConfirmResult = {
+  /** 整组是否真正落库：false 表示全组退回，一环都没写。 */
+  ok: boolean
+  committed: boolean
+  message: string
+  items: RingConfirmItem[]
+  confirmedCount: number
+  skippedCount: number
+  confirmedAt?: string
+}

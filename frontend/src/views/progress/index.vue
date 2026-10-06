@@ -3,7 +3,7 @@
     <header class="page-head">
       <div>
         <h2>进度节点管理</h2>
-        <p class="page-desc">维护进度节点，围绕节点编号、节点名称、计划完成日、实际完成日做登记、筛选与状态流转。</p>
+        <p class="page-desc">维护进度节点，围绕节点编号、节点名称、计划完成日、实际完成日做登记、筛选与状态流转；贯通确认结论回写到在办清单。</p>
       </div>
       <div class="page-actions">
         <button class="btn primary" type="button" @click="openCreate">登记进度节点</button>
@@ -43,7 +43,9 @@
       </thead>
       <tbody>
         <tr v-for="row in rows" :key="String(row.id)">
-          <td v-for="column in columns" :key="column">{{ row[column] ?? '—' }}</td>
+          <td v-for="column in columns" :key="column" :class="{ 'cell-wrap': column === '在办清单' || column === '确认结论' }">
+            {{ row[column] || (column === '在办清单' ? '—（在办已清空）' : '—') }}
+          </td>
           <td>{{ row.status }}</td>
           <td class="row-actions">
             <button
@@ -75,6 +77,7 @@ import { computed, onMounted, ref } from 'vue'
 
 import {
   downloadEntries,
+  getRingStats,
   listEntries,
   moduleMeta,
   runAction as applyAction,
@@ -82,16 +85,23 @@ import {
 import type { EntryRow } from '@/data/types'
 
 const meta = moduleMeta('progress')
-const columns = ["节点编号", "节点名称", "计划完成日", "实际完成日", "计划掘进量", "实际掘进量", "偏差天数", "节点状态"]
+// 节点状态走独立的状态列；在办清单与确认结论是贯通确认的回写落点。
+const columns = ["节点编号", "节点名称", "区间", "计划完成日", "实际完成日", "计划掘进量", "实际掘进量", "偏差天数", "在办清单", "确认结论"]
 const actions = ["开始节点", "确认完成", "登记延期"]
 const statuses = ["未开始", "进行中", "已完成", "已延期"]
-const stats = [{"label": "进行中节点", "value": 0}, {"label": "已完成节点", "value": 0}, {"label": "延期节点", "value": 0}]
 
 const rows = ref<EntryRow[]>([])
 const total = ref(0)
 const errorMessage = ref('')
 const filters = ref<Record<string, string>>({})
-const filterFields = columns.slice(0, 3)
+const filterFields = ["节点编号", "节点名称", "区间"]
+const stats = ref([
+  { label: '进行中节点', value: 0 },
+  { label: '已完成节点', value: 0 },
+  { label: '延期节点', value: 0 },
+  { label: '本月贯通环数（台账口径）', value: 0 },
+])
+
 const statusSummary = computed(() =>
   statuses.map((status: string) => ({
     status,
@@ -128,6 +138,13 @@ function reload() {
     const payload = listEntries(meta.key, filters.value)
     rows.value = payload.items
     total.value = payload.total
+    // 本月贯通环数与掘进环次页、运营概览读同一份台账，两处必须对得上。
+    stats.value = [
+      { label: '进行中节点', value: payload.items.filter((row) => String(row.status) === '进行中').length },
+      { label: '已完成节点', value: payload.items.filter((row) => String(row.status) === '已完成').length },
+      { label: '延期节点', value: payload.items.filter((row) => String(row.status) === '已延期').length },
+      { label: '本月贯通环数（台账口径）', value: getRingStats().monthBreakthrough },
+    ]
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '进度节点列表读取失败'
   }
@@ -135,3 +152,11 @@ function reload() {
 
 onMounted(reload)
 </script>
+
+<style scoped>
+.cell-wrap {
+  max-width: 260px;
+  white-space: normal;
+  word-break: break-all;
+}
+</style>
